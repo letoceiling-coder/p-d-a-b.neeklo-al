@@ -84,13 +84,15 @@ async function extractMultiPass(text, fields) {
 
       result.fields[field.key] = {
         value: value ?? null,
-        confidence
+        confidence,
+        source: "llm"
       };
     } catch (err) {
       console.error("FIELD ERROR:", field.key, err?.message);
       result.fields[field.key] = {
         value: null,
         confidence: 0,
+        source: "",
         error: "timeout_or_ai_error"
       };
       if (!result.meta) result.meta = {};

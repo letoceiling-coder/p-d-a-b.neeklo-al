@@ -16,6 +16,72 @@ function clamp01(x) {
 }
 
 /**
+ * Уверенность по фактам (источник, значение, doubtful), не из ответа LLM.
+ * @param {Record<string, unknown>} field
+ * @param {Record<string, unknown>} [_context]
+ * @returns {number}
+ */
+function calculateConfidence(field, _context) {
+  let score = 0.5;
+
+  const source = String(field.source || "");
+
+  if (source === "rule") {
+    score += 0.4;
+  }
+
+  const val = field.value;
+  const hasValue =
+    val !== null &&
+    val !== undefined &&
+    String(val).trim() !== "";
+
+  if (hasValue) {
+    score += 0.1;
+  }
+
+  if (field.doubtful === true) {
+    score -= 0.3;
+  }
+
+  if (source === "llm") {
+    score -= 0.1;
+  }
+
+  return Math.max(0, Math.min(1, score));
+}
+
+/**
+ * Короткое объяснение для пользователя: откуда взялось значение поля.
+ * @param {Record<string, unknown>} field
+ * @returns {string}
+ */
+function buildReason(field) {
+  const source = String(field.source || "");
+  const hasValue =
+    field.value !== null &&
+    field.value !== undefined &&
+    String(field.value).trim() !== "";
+
+  if (!hasValue) {
+    return "значение не найдено в документе";
+  }
+
+  if (source === "rule" || source === "words") {
+    return "найдено по ключевым словам в документе";
+  }
+
+  if (source === "llm") {
+    if (field.doubtful) {
+      return "извлечено AI, но есть сомнения";
+    }
+    return "извлечено AI на основе анализа текста";
+  }
+
+  return "не удалось определить источник";
+}
+
+/**
  * Ответ AI в плоском виде → структура fields + risks.
  * @param {Record<string, unknown>} obj
  * @param {FieldDescriptor[]} descriptors
@@ -33,7 +99,7 @@ function migrateLegacyAiPayload(obj, descriptors) {
     fields[d.key] = {
       value,
       confidence: trimmed ? 0.65 : 0.25,
-      source: "",
+      source: "llm",
       doubtful: !trimmed
     };
   }
@@ -108,13 +174,14 @@ function applyFieldValidators(fields, descriptors) {
 
     if (!ok) {
       f.value = null;
-      f.confidence = clamp01((Number(f.confidence) || 0.5) * 0.3);
       f.doubtful = true;
+      f.source = "";
     } else {
-      let conf = clamp01(Number(f.confidence));
-      f.confidence = conf;
-      f.doubtful = conf < 0.5;
+      f.doubtful = !val;
     }
+
+    f.confidence = calculateConfidence(f, { key, descriptor: desc });
+    f.reason = buildReason(f);
   }
   return fields;
 }
@@ -191,6 +258,8 @@ module.exports = {
   migrateLegacyAiPayload,
   ensureFieldShape,
   applyFieldValidators,
+  calculateConfidence,
+  buildReason,
   normalizeRisks,
   buildMeta,
   attachLowExtractionQualityMeta,
