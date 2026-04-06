@@ -5,7 +5,7 @@ const port = Number(process.env.PORT || 3000);
 const host = "0.0.0.0";
 
 async function start() {
-  const app = buildApp();
+  const app = await buildApp();
   try {
     await app.listen({ port, host });
   } catch (error) {

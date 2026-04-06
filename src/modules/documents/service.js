@@ -30,6 +30,14 @@ async function saveIncomingFile(part) {
   return filePath;
 }
 
+function isAiFailurePayload(extracted) {
+  if (!extracted || typeof extracted !== "object") return true;
+  if (extracted.status === "FAILED") return true;
+  if (extracted.error === "AI extraction failed") return true;
+  if (extracted.error === "AI unavailable") return true;
+  return false;
+}
+
 async function processDocument({ userId, filePath, originalName }) {
   const parser = getParserByExt(getExt(originalName));
   const text = await parser(filePath);
@@ -43,23 +51,18 @@ async function processDocument({ userId, filePath, originalName }) {
     }
   });
 
-  try {
-    const extracted = await extractFields(text);
-    const updated = await prisma.document.update({
-      where: { id: created.id },
-      data: {
-        extractedJson: extracted,
-        status: "DONE"
-      }
-    });
-    return updated;
-  } catch (error) {
-    await prisma.document.update({
-      where: { id: created.id },
-      data: { status: "FAILED" }
-    });
-    throw error;
-  }
+  const extracted = await extractFields(text);
+  const failed = isAiFailurePayload(extracted);
+
+  const updated = await prisma.document.update({
+    where: { id: created.id },
+    data: {
+      extractedJson: extracted,
+      status: failed ? "FAILED" : "DONE"
+    }
+  });
+
+  return updated;
 }
 
 module.exports = {
