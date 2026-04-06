@@ -15,6 +15,32 @@ const {
  */
 
 /**
+ * partialExtraction по итоговым ячейкам: есть null или пустая строка.
+ * @param {Record<string, unknown>} meta
+ * @param {Record<string, unknown>} fields
+ */
+function applyPartialExtractionFromFields(meta, fields) {
+  const f = fields && typeof fields === "object" ? fields : {};
+  const total = Object.keys(f).length;
+  let nullCount = 0;
+  for (const cell of Object.values(f)) {
+    if (!cell || typeof cell !== "object" || Array.isArray(cell)) continue;
+    const v = /** @type {{ value?: unknown }} */ (cell).value;
+    if (v === null || v === "") {
+      nullCount++;
+    }
+  }
+  if (total > 0 && nullCount > 0) {
+    meta.partialExtraction = true;
+  }
+  console.log("PARTIAL CHECK:", {
+    total,
+    nullCount,
+    partial: meta.partialExtraction
+  });
+}
+
+/**
  * Извлечение с прямым вызовом Ollama (GPU) + пост-валидацией.
  * @param {string} text
  * @param {FieldDescriptor[]} fieldDescriptors
@@ -54,6 +80,10 @@ async function extractFields(text, fieldDescriptors, options = {}) {
         extractionParseFailed: true,
         extractionShapeFailed: true
       };
+      if (aiMeta && aiMeta.partialExtraction === true) {
+        meta.partialExtraction = true;
+      }
+      applyPartialExtractionFromFields(meta, fields);
       attachLowExtractionQualityMeta(meta, fields);
       const out = { fields, risks, meta };
       console.log("EXTRACTION OUTPUT meta:", out.meta);
@@ -77,6 +107,7 @@ async function extractFields(text, fieldDescriptors, options = {}) {
       meta.extractionParseFailed = true;
       meta.rawAiResponse = lastRaw;
     }
+    applyPartialExtractionFromFields(meta, fields);
     attachLowExtractionQualityMeta(meta, fields);
 
     const out = { fields, risks, meta };
