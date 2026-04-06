@@ -1,4 +1,6 @@
 /** Два последовательных вызова AI (извлечение + проверка JSON). */
+const { safeJsonParse } = require("./safeJsonParse");
+
 const AI_TIMEOUT_MS = 20_000;
 
 /**
@@ -80,15 +82,15 @@ async function callAI(message, assistantId, aiOptions = {}) {
       throw new Error(`AI gateway HTTP ${res.status}: ${rawBody}`);
     }
 
-    let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch {
-      console.log("RAW AI RESPONSE (non-JSON body):", rawBody);
-      throw new Error("AI gateway returned non-JSON body");
+    const data = safeJsonParse(rawBody);
+    if (data === null) {
+      console.log("RAW AI RESPONSE:", rawBody);
+      console.log("PARSED RESULT:", null);
+      return { reply: rawBody };
     }
 
     console.log("RAW AI RESPONSE:", gatewayMessageText(data));
+    console.log("PARSED RESULT:", data);
     return data;
   } catch (err) {
     console.error("AI ERROR:", err);

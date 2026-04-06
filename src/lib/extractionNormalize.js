@@ -70,8 +70,13 @@ function ensureFieldShape(fields, descriptors) {
       };
     } else {
       const f = /** @type {Record<string, unknown>} */ (cell);
-      if (f.value == null) f.value = "";
-      else f.value = String(f.value);
+      if (f.value === null) {
+        /* явный null от AI — «нет в договоре», не подменяем на "" */
+      } else if (f.value === undefined) {
+        f.value = "";
+      } else {
+        f.value = String(f.value);
+      }
       f.confidence = clamp01(Number(f.confidence));
       if (f.source == null) f.source = "";
       else f.source = String(f.source);
@@ -101,10 +106,15 @@ function applyFieldValidators(fields, descriptors) {
       else if (type === "number" || key === "amount") ok = validateAmount(val);
     }
 
-    let conf = clamp01(Number(f.confidence));
-    if (!ok) conf = clamp01(conf * 0.5);
-    f.confidence = conf;
-    f.doubtful = conf < 0.5;
+    if (!ok) {
+      f.value = null;
+      f.confidence = clamp01((Number(f.confidence) || 0.5) * 0.3);
+      f.doubtful = true;
+    } else {
+      let conf = clamp01(Number(f.confidence));
+      f.confidence = conf;
+      f.doubtful = conf < 0.5;
+    }
   }
   return fields;
 }
@@ -160,11 +170,29 @@ function buildMeta(fields, risks, secondPassOk) {
   };
 }
 
+/**
+ * Доля заполненных полей меньше 30% → meta.lowExtractionQuality.
+ * @param {Record<string, unknown>} meta
+ * @param {Record<string, unknown>} fields
+ */
+function attachLowExtractionQualityMeta(meta, fields) {
+  const total = Object.keys(fields).length;
+  const filled = Object.values(fields).filter((cell) => {
+    if (!cell || typeof cell !== "object" || Array.isArray(cell)) return false;
+    const v = /** @type {{ value?: unknown }} */ (cell).value;
+    return v !== null && v !== "";
+  }).length;
+  if (total > 0 && filled / total < 0.3) {
+    meta.lowExtractionQuality = true;
+  }
+}
+
 module.exports = {
   migrateLegacyAiPayload,
   ensureFieldShape,
   applyFieldValidators,
   normalizeRisks,
   buildMeta,
+  attachLowExtractionQualityMeta,
   clamp01
 };

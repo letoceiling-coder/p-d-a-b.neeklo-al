@@ -28,15 +28,18 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function readNestedField(
   result: Record<string, unknown>,
   key: string
-): { value: string; meta?: FieldMeta } {
+): { value: string | null; meta?: FieldMeta } {
   const fields = result.fields
   if (fields && isRecord(fields)) {
     const cell = fields[key]
     if (cell && isRecord(cell)) {
+      const raw = cell.value
       const value =
-        cell.value != null && typeof cell.value !== 'object'
-          ? String(cell.value)
-          : ''
+        raw === null
+          ? null
+          : raw != null && typeof raw !== 'object'
+            ? String(raw)
+            : ''
       const confidence =
         typeof cell.confidence === 'number' ? cell.confidence : undefined
       const doubtful = cell.doubtful === true
@@ -51,7 +54,12 @@ function readNestedField(
   }
   const top = result[key]
   return {
-    value: typeof top === 'string' ? top : '',
+    value:
+      top === null
+        ? null
+        : typeof top === 'string'
+          ? top
+          : '',
   }
 }
 
@@ -123,6 +131,8 @@ function parseRisks(result: Record<string, unknown>): RiskRow[] {
 
 function parseExtractionMeta(result: Record<string, unknown>) {
   const m = result.meta && isRecord(result.meta) ? result.meta : null
+  const rawAiResponse =
+    typeof m?.rawAiResponse === 'string' ? m.rawAiResponse : ''
   return {
     anyDoubtful: m?.anyDoubtful === true,
     secondPassOk: m?.secondPassOk === true,
@@ -131,6 +141,9 @@ function parseExtractionMeta(result: Record<string, unknown>) {
         ? m.extractionVersion
         : undefined,
     extractRisks: m?.extractRisks !== false,
+    extractionParseFailed: m?.extractionParseFailed === true,
+    lowExtractionQuality: m?.lowExtractionQuality === true,
+    rawAiResponse,
   }
 }
 
@@ -138,13 +151,18 @@ function parseExtractionMeta(result: Record<string, unknown>) {
 function buildReportRows(
   configList: FieldDesc[],
   result: Record<string, unknown> | null
-): Array<{ key: string; name: string; value: string; meta?: FieldMeta }> {
+): Array<{
+  key: string
+  name: string
+  value: string | null
+  meta?: FieldMeta
+}> {
   if (!result) return []
   const seen = new Set<string>()
   const rows: Array<{
     key: string
     name: string
-    value: string
+    value: string | null
     meta?: FieldMeta
   }> = []
   for (const d of configList) {
@@ -180,10 +198,10 @@ function confidenceBarClass(p: number): string {
 }
 
 function overallConfidencePercent(
-  rows: Array<{ meta?: FieldMeta; value: string }>
+  rows: Array<{ meta?: FieldMeta; value: string | null }>
 ): number | null {
   const vals = rows
-    .filter((r) => r.value.trim())
+    .filter((r) => r.value != null && r.value.trim())
     .map((r) => r.meta?.confidence)
     .filter((c): c is number => typeof c === 'number')
   if (!vals.length) return null
@@ -332,6 +350,7 @@ export function DocumentViewPage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showRawAiResponse, setShowRawAiResponse] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -360,6 +379,10 @@ export function DocumentViewPage() {
     }
   }, [id])
 
+  useEffect(() => {
+    setShowRawAiResponse(false)
+  }, [id, resultRes?.result])
+
   const resultObj =
     resultRes?.result && isRecord(resultRes.result) &&
     !('status' in resultRes.result) &&
@@ -372,9 +395,11 @@ export function DocumentViewPage() {
   const risks = resultObj ? parseRisks(resultObj) : []
   const meta = resultObj ? parseExtractionMeta(resultObj) : null
 
-  const innHighlight = resultObj ? readNestedField(resultObj, 'inn').value : ''
+  const innHighlight = resultObj
+    ? readNestedField(resultObj, 'inn').value ?? ''
+    : ''
   const amountHighlight = resultObj
-    ? readNestedField(resultObj, 'amount').value
+    ? readNestedField(resultObj, 'amount').value ?? ''
     : ''
 
   const overall = overallConfidencePercent(reportRows)
@@ -481,6 +506,50 @@ export function DocumentViewPage() {
               договора слева.
             </p>
 
+            {meta?.extractionParseFailed || meta?.lowExtractionQuality ? (
+              <div className="space-y-3">
+                {meta?.extractionParseFailed ? (
+                  <div
+                    className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+                    role="status"
+                  >
+                    <p className="font-medium">
+                      ⚠️ AI не смог корректно извлечь данные из документа
+                    </p>
+                    {meta.rawAiResponse.trim() ? (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowRawAiResponse((v) => !v)}
+                          className="text-xs font-semibold text-amber-900 underline decoration-amber-600/60 underline-offset-2 hover:text-amber-950"
+                        >
+                          {showRawAiResponse
+                            ? 'Скрыть ответ AI'
+                            : 'Показать ответ AI'}
+                        </button>
+                        {showRawAiResponse ? (
+                          <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-amber-200/80 bg-white p-3 font-mono text-xs leading-relaxed text-slate-800 whitespace-pre-wrap break-words">
+                            {meta.rawAiResponse}
+                          </pre>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {meta?.lowExtractionQuality ? (
+                  <div
+                    className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+                    role="status"
+                  >
+                    <p className="font-medium">
+                      ⚠️ Низкое качество извлечения (данные могут быть
+                      неточными)
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {overall != null ? (
               <ReportSection title="Уверенность" emoji="📊">
                 <div className="flex items-end gap-3">
@@ -514,7 +583,10 @@ export function DocumentViewPage() {
                   </p>
                 ) : (
                   reportRows.map((row) => {
-                    const empty = !row.value.trim()
+                    const absent = row.value === null
+                    const emptyStr =
+                      row.value !== null && !String(row.value).trim()
+                    const empty = absent || emptyStr
                     const c = row.meta?.confidence
                     const pct =
                       typeof c === 'number' && !empty
@@ -538,9 +610,13 @@ export function DocumentViewPage() {
                           ) : null}
                         </div>
                         <p
-                          className={`mt-2 text-sm leading-snug ${empty ? 'text-slate-400' : 'font-medium text-slate-900'}`}
+                          className={`mt-2 text-sm leading-snug ${absent ? 'italic text-slate-500' : emptyStr ? 'text-slate-400' : 'font-medium text-slate-900'}`}
                         >
-                          {empty ? '—' : row.value}
+                          {absent
+                            ? 'Нет в договоре'
+                            : emptyStr
+                              ? '—'
+                              : row.value}
                         </p>
                         {row.meta?.doubtful ? (
                           <p className="mt-1.5 text-xs font-medium text-amber-800">
