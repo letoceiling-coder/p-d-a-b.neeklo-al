@@ -1,6 +1,6 @@
 "use strict";
 
-const { extractWithRetry } = require("./extractPipeline");
+const { extractMultiPass } = require("./extractMultiPass");
 const {
   migrateLegacyAiPayload,
   ensureFieldShape,
@@ -35,7 +35,7 @@ async function extractFields(text, fieldDescriptors, options = {}) {
       return out;
     }
 
-    const aiObj = await extractWithRetry(text, descriptors);
+    const aiObj = await extractMultiPass(text, descriptors);
     const aiMeta =
       aiObj && typeof aiObj === "object" && aiObj.meta && typeof aiObj.meta === "object"
         ? aiObj.meta

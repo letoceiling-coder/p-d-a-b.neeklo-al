@@ -2,7 +2,7 @@
 
 const OLLAMA_URL =
   process.env.OLLAMA_URL || "http://188.124.55.89:11434/api/chat";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3:8b";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5:7b";
 const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS || 20_000);
 
 /**
