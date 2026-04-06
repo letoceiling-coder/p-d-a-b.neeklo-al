@@ -3,6 +3,7 @@
 const { callOllama } = require("./ollamaDirect");
 const { buildFieldPrompt } = require("./extractionPromptField");
 const { extractJson } = require("./parseJsonStrict");
+const { applyRuleEngine } = require("./ruleEngine");
 
 /**
  * @param {unknown} body
@@ -32,8 +33,16 @@ async function extractMultiPass(text, fields) {
     meta: {}
   };
 
+  const ruleResults = applyRuleEngine(text, fields);
+
   for (const field of fields) {
     try {
+      if (ruleResults[field.key]) {
+        console.log("RULE HIT:", field.key);
+        result.fields[field.key] = { ...ruleResults[field.key] };
+        continue;
+      }
+
       let value = null;
       let confidence = 0;
 
