@@ -8,22 +8,88 @@ export type CustomExtractionField = {
 }
 
 export type ExtractionSettings = {
-  inn: boolean
-  amount: boolean
-  term: boolean
-  risks: boolean
-  penalties: boolean
+  selectedKeys: string[]
   customFields: CustomExtractionField[]
+  extractRisks: boolean
 }
+
+export const DEFAULT_EXTRACTION_FIELDS: Array<{
+  key: string
+  name: string
+  type: 'string' | 'number' | 'date'
+}> = [
+  { key: 'subject', name: 'Предмет договора', type: 'string' },
+  { key: 'start_date', name: 'Дата начала', type: 'date' },
+  { key: 'end_date', name: 'Дата окончания', type: 'date' },
+  { key: 'contract_amount', name: 'Сумма контракта', type: 'number' },
+  { key: 'unit_prices', name: 'Единичные расценки', type: 'string' },
+  { key: 'payment_terms', name: 'Условия оплаты', type: 'string' },
+  { key: 'payment_deadline', name: 'Срок оплаты', type: 'string' },
+  {
+    key: 'required_payment_docs',
+    name: 'Документы для оплаты',
+    type: 'string',
+  },
+  { key: 'inn', name: 'ИНН', type: 'string' },
+  {
+    key: 'application_deadline',
+    name: 'Срок подачи заявки',
+    type: 'string',
+  },
+  {
+    key: 'special_account',
+    name: 'Использование спец счета',
+    type: 'string',
+  },
+  { key: 'penalties', name: 'Штрафы', type: 'string' },
+  {
+    key: 'termination_conditions',
+    name: 'Условия расторжения',
+    type: 'string',
+  },
+  {
+    key: 'transport_requirements',
+    name: 'Требования к транспорту',
+    type: 'string',
+  },
+  {
+    key: 'personnel_requirements',
+    name: 'Требования к персоналу',
+    type: 'string',
+  },
+  { key: 'licenses', name: 'Специальные разрешения', type: 'string' },
+  {
+    key: 'counterparty_check',
+    name: 'Проверка контрагента',
+    type: 'string',
+  },
+]
 
 export function defaultExtractionSettings(): ExtractionSettings {
   return {
-    inn: true,
-    amount: true,
-    term: true,
-    risks: true,
-    penalties: true,
+    selectedKeys: DEFAULT_EXTRACTION_FIELDS.map((f) => f.key),
     customFields: [],
+    extractRisks: true,
+  }
+}
+
+function normalizeLegacySettings(raw: Record<string, unknown>): ExtractionSettings {
+  const defaults = defaultExtractionSettings()
+  const selected = new Set<string>()
+  if (raw.inn === true) selected.add('inn')
+  if (raw.amount === true) selected.add('contract_amount')
+  if (raw.term === true) {
+    selected.add('start_date')
+    selected.add('end_date')
+  }
+  if (raw.penalties === true) selected.add('penalties')
+  if (selected.size === 0) return defaults
+  return {
+    selectedKeys: [...selected],
+    customFields: Array.isArray(raw.customFields)
+      ? (raw.customFields as CustomExtractionField[])
+      : [],
+    extractRisks: raw.risks !== false,
   }
 }
 
@@ -31,11 +97,19 @@ export function loadExtractionSettings(): ExtractionSettings {
   try {
     const raw = localStorage.getItem(EXTRACTION_SETTINGS_KEY)
     if (!raw) return defaultExtractionSettings()
-    const j = JSON.parse(raw) as Partial<ExtractionSettings>
+    const j = JSON.parse(raw) as Partial<ExtractionSettings> &
+      Record<string, unknown>
+    if (!Array.isArray(j.selectedKeys)) {
+      return normalizeLegacySettings(j)
+    }
     return {
       ...defaultExtractionSettings(),
       ...j,
+      selectedKeys: Array.isArray(j.selectedKeys)
+        ? j.selectedKeys.filter((k): k is string => typeof k === 'string')
+        : defaultExtractionSettings().selectedKeys,
       customFields: Array.isArray(j.customFields) ? j.customFields : [],
+      extractRisks: j.extractRisks !== false,
     }
   } catch {
     return defaultExtractionSettings()
@@ -55,26 +129,15 @@ export type UploadFieldsConfig = {
 export function buildUploadFieldsConfig(
   settings: ExtractionSettings
 ): UploadFieldsConfig | null {
+  const selectedSet = new Set(settings.selectedKeys)
   const fields: UploadFieldsConfig['fields'] = []
-  if (settings.inn) {
-    fields.push({ key: 'inn', name: 'ИНН', type: 'string' })
-  }
-  if (settings.amount) {
-    fields.push({ key: 'amount', name: 'Сумма контракта', type: 'number' })
-  }
-  if (settings.term) {
-    fields.push({ key: 'start_date', name: 'Дата начала', type: 'date' })
-    fields.push({ key: 'end_date', name: 'Дата окончания', type: 'date' })
-  }
-  if (settings.penalties) {
-    fields.push({
-      key: 'penalties',
-      name: 'Штрафы и неустойки',
-      type: 'string',
-    })
+  for (const f of DEFAULT_EXTRACTION_FIELDS) {
+    if (selectedSet.has(f.key)) {
+      fields.push({ key: f.key, name: f.name, type: f.type })
+    }
   }
   for (const c of settings.customFields) {
-    if (!c.key.trim() || !c.name.trim()) continue
+    if (!c.key.trim() || !c.name.trim() || !selectedSet.has(c.key.trim())) continue
     fields.push({
       key: c.key.trim(),
       name: c.name.trim(),
@@ -82,7 +145,7 @@ export function buildUploadFieldsConfig(
     })
   }
   if (fields.length === 0) return null
-  return { fields, extractRisks: settings.risks }
+  return { fields, extractRisks: settings.extractRisks }
 }
 
 export function validateExtractionSettings(settings: ExtractionSettings): string | null {

@@ -1,11 +1,51 @@
 "use strict";
 
 const DEFAULT_FIELD_DESCRIPTORS = [
-  { key: "inn", name: "ИНН", type: "string" },
-  { key: "amount", name: "Сумма контракта", type: "number" },
+  { key: "subject", name: "Предмет договора", type: "string" },
   { key: "start_date", name: "Дата начала", type: "date" },
   { key: "end_date", name: "Дата окончания", type: "date" },
-  { key: "payment_terms", name: "Условия оплаты", type: "string" }
+  { key: "contract_amount", name: "Сумма контракта", type: "number" },
+  { key: "unit_prices", name: "Единичные расценки", type: "string" },
+  { key: "payment_terms", name: "Условия оплаты", type: "string" },
+  { key: "payment_deadline", name: "Срок оплаты", type: "string" },
+  {
+    key: "required_payment_docs",
+    name: "Документы для оплаты",
+    type: "string"
+  },
+  { key: "inn", name: "ИНН", type: "string" },
+  {
+    key: "application_deadline",
+    name: "Срок подачи заявки",
+    type: "string"
+  },
+  {
+    key: "special_account",
+    name: "Использование спец счета",
+    type: "string"
+  },
+  { key: "penalties", name: "Штрафы", type: "string" },
+  {
+    key: "termination_conditions",
+    name: "Условия расторжения",
+    type: "string"
+  },
+  {
+    key: "transport_requirements",
+    name: "Требования к транспорту",
+    type: "string"
+  },
+  {
+    key: "personnel_requirements",
+    name: "Требования к персоналу",
+    type: "string"
+  },
+  { key: "licenses", name: "Специальные разрешения", type: "string" },
+  {
+    key: "counterparty_check",
+    name: "Проверка контрагента",
+    type: "string"
+  }
 ];
 
 /**

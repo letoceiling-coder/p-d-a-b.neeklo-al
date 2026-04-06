@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  DEFAULT_EXTRACTION_FIELDS,
   defaultExtractionSettings,
   loadExtractionSettings,
   saveExtractionSettings,
@@ -9,21 +10,6 @@ import {
   isValidCustomKey,
   suggestCustomKey,
 } from '../lib/extractionSettings'
-
-const PRESETS: Array<{
-  key: keyof Pick<
-    ExtractionSettings,
-    'inn' | 'amount' | 'term' | 'risks' | 'penalties'
-  >
-  label: string
-  hint: string
-}> = [
-  { key: 'inn', label: 'ИНН', hint: 'Идентификационный номер стороны' },
-  { key: 'amount', label: 'Сумма', hint: 'Сумма контракта / цена' },
-  { key: 'term', label: 'Срок', hint: 'Даты начала и окончания' },
-  { key: 'risks', label: 'Риски', hint: 'Анализ рисков в отчёте' },
-  { key: 'penalties', label: 'Штрафы', hint: 'Неустойки и штрафные санкции' },
-]
 
 export function ExtractionSettingsPage() {
   const [settings, setSettings] = useState<ExtractionSettings>(
@@ -45,18 +31,25 @@ export function ExtractionSettingsPage() {
     saveExtractionSettings(next)
   }, [])
 
-  function toggle(
-    key: keyof Pick<
-      ExtractionSettings,
-      'inn' | 'amount' | 'term' | 'risks' | 'penalties'
-    >
-  ) {
-    persist({ ...settings, [key]: !settings[key] })
+  function toggleField(key: string) {
+    const has = settings.selectedKeys.includes(key)
+    const next = has
+      ? settings.selectedKeys.filter((k) => k !== key)
+      : [...settings.selectedKeys, key]
+    persist({ ...settings, selectedKeys: next })
+  }
+
+  function toggleRisks() {
+    persist({ ...settings, extractRisks: !settings.extractRisks })
   }
 
   function removeCustom(id: string) {
+    const item = settings.customFields.find((x) => x.id === id)
     persist({
       ...settings,
+      selectedKeys: item
+        ? settings.selectedKeys.filter((k) => k !== item.key)
+        : settings.selectedKeys,
       customFields: settings.customFields.filter((c) => c.id !== id),
     })
   }
@@ -80,6 +73,10 @@ export function ExtractionSettingsPage() {
       setAddError('Такой ключ уже есть')
       return
     }
+    if (DEFAULT_EXTRACTION_FIELDS.some((f) => f.key === key)) {
+      setAddError('Этот ключ уже занят стандартным полем')
+      return
+    }
     const row: CustomExtractionField = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       key,
@@ -88,6 +85,7 @@ export function ExtractionSettingsPage() {
     }
     persist({
       ...settings,
+      selectedKeys: [...settings.selectedKeys, key],
       customFields: [...settings.customFields, row],
     })
     setNewName('')
@@ -111,6 +109,15 @@ export function ExtractionSettingsPage() {
           Выберите, какие данные передавать в ИИ при загрузке файла. Настройки
           сохраняются в браузере и отправляются на сервер вместе с документом.
         </p>
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => persist(defaultExtractionSettings())}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Сбросить к стандарту
+          </button>
+        </div>
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -118,7 +125,7 @@ export function ExtractionSettingsPage() {
           Что извлекать
         </h3>
         <ul className="mt-4 space-y-4">
-          {PRESETS.map((p) => (
+          {DEFAULT_EXTRACTION_FIELDS.map((p) => (
             <li
               key={p.key}
               className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-3"
@@ -126,16 +133,29 @@ export function ExtractionSettingsPage() {
               <input
                 type="checkbox"
                 id={`ex-${p.key}`}
-                checked={settings[p.key]}
-                onChange={() => toggle(p.key)}
+                checked={settings.selectedKeys.includes(p.key)}
+                onChange={() => toggleField(p.key)}
                 className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
               <label htmlFor={`ex-${p.key}`} className="cursor-pointer">
-                <span className="font-medium text-slate-900">{p.label}</span>
-                <p className="text-sm text-slate-500">{p.hint}</p>
+                <span className="font-medium text-slate-900">{p.name}</span>
+                <p className="text-xs text-slate-500 font-mono">{p.key}</p>
               </label>
             </li>
           ))}
+          <li className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-3">
+            <input
+              type="checkbox"
+              id="ex-risks"
+              checked={settings.extractRisks}
+              onChange={toggleRisks}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="ex-risks" className="cursor-pointer">
+              <span className="font-medium text-slate-900">Риски</span>
+              <p className="text-sm text-slate-500">Анализ рисков в отчёте</p>
+            </label>
+          </li>
         </ul>
       </section>
 
