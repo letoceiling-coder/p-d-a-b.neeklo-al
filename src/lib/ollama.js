@@ -13,6 +13,13 @@ const {
   buildMeta
 } = require("./extractionNormalize");
 
+/** Параметры gateway для жёсткого JSON-режима извлечения. */
+const EXTRACTION_CALL_AI_OPTS = {
+  temperature: 0,
+  max_tokens: 2048,
+  stop: ["```", "\n\n"]
+};
+
 /**
  * @typedef {{ key: string, name: string, type: 'string' | 'date' | 'number' }} FieldDescriptor
  */
@@ -106,7 +113,7 @@ async function extractFields(text, fieldDescriptors, options = {}) {
     let parsed = { ok: false, obj: undefined };
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const data = await callAI(prompt, assistantId);
+        const data = await callAI(prompt, assistantId, EXTRACTION_CALL_AI_OPTS);
         const raw = replyTextFromGatewayBody(data);
         parsed = parseExtractedJson(raw);
         if (parsed.ok) break;
@@ -142,7 +149,7 @@ async function extractFields(text, fieldDescriptors, options = {}) {
           : []
       });
       const verifyPrompt = buildVerificationPrompt(payload);
-      const data2 = await callAI(verifyPrompt, assistantId);
+      const data2 = await callAI(verifyPrompt, assistantId, EXTRACTION_CALL_AI_OPTS);
       const raw2 = replyTextFromGatewayBody(data2);
       const p2 = parseExtractedJson(raw2);
       if (p2.ok && p2.obj) {

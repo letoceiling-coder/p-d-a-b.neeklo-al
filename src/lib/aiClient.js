@@ -2,11 +2,44 @@
 const AI_TIMEOUT_MS = 20_000;
 
 /**
+ * Текст ответа модели из тела gateway (без циклического require ollama).
+ * @param {unknown} data
+ * @returns {string}
+ */
+function gatewayMessageText(data) {
+  try {
+    if (data == null) return "";
+    if (typeof data === "string") return data;
+    if (typeof data.reply === "string") return data.reply;
+    if (typeof data.message === "string") return data.message;
+    if (typeof data.content === "string") return data.content;
+    if (typeof data.response === "string") return data.response;
+    if (data.data != null && typeof data.data.content === "string") {
+      return data.data.content;
+    }
+    const choice = data.choices?.[0]?.message?.content;
+    if (typeof choice === "string") return choice;
+    if (data.data != null && typeof data.data.message === "string") {
+      return data.data.message;
+    }
+    if (typeof data.text === "string") return data.text;
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * @param {string} message
  * @param {string} assistantId
+ * @param {{
+ *   temperature?: number;
+ *   max_tokens?: number;
+ *   stop?: string[];
+ * }} [aiOptions] — опции генерации (передаются в gateway только если заданы)
  * @returns {Promise<unknown>}
  */
-async function callAI(message, assistantId) {
+async function callAI(message, assistantId, aiOptions = {}) {
   const rawUrl = process.env.AI_API_URL || "";
   const base = rawUrl.replace(/\/+$/, "");
 
@@ -20,6 +53,15 @@ async function callAI(message, assistantId) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
 
+  const body = /** @type {Record<string, unknown>} */ ({
+    assistantId,
+    message
+  });
+  const opt = aiOptions || {};
+  if (opt.temperature !== undefined) body.temperature = opt.temperature;
+  if (opt.max_tokens !== undefined) body.max_tokens = opt.max_tokens;
+  if (opt.stop !== undefined) body.stop = opt.stop;
+
   try {
     const res = await fetch(`${base}/chat`, {
       method: "POST",
@@ -27,20 +69,26 @@ async function callAI(message, assistantId) {
         "Content-Type": "application/json",
         "X-Api-Key": process.env.AI_API_KEY
       },
-      body: JSON.stringify({
-        assistantId,
-        message
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal
     });
 
+    const rawBody = await res.text();
+
     if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`AI gateway HTTP ${res.status}: ${errText}`);
+      console.log("RAW AI RESPONSE (HTTP error body):", rawBody);
+      throw new Error(`AI gateway HTTP ${res.status}: ${rawBody}`);
     }
 
-    const data = await res.json();
-    console.log("AI RESPONSE:", data);
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      console.log("RAW AI RESPONSE (non-JSON body):", rawBody);
+      throw new Error("AI gateway returned non-JSON body");
+    }
+
+    console.log("RAW AI RESPONSE:", gatewayMessageText(data));
     return data;
   } catch (err) {
     console.error("AI ERROR:", err);
