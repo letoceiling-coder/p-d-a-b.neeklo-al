@@ -67,6 +67,12 @@ async function extractFields(text, fieldDescriptors, options = {}) {
       ...buildMeta(fields, risks, false),
       extractRisks
     };
+    if (aiMeta && aiMeta.partialExtraction === true) {
+      meta.partialExtraction = true;
+    }
+    if (aiMeta && aiMeta.extractionFailed === true) {
+      meta.extractionFailed = true;
+    }
     if (aiMeta && aiMeta.extractionFailed === true) {
       meta.extractionParseFailed = true;
       meta.rawAiResponse = lastRaw;
