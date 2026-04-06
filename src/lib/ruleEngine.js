@@ -14,27 +14,49 @@ function extractInn(text) {
 }
 
 /**
+ * @param {string} text
+ * @param {Set<string>} skip
+ * @returns {string | null}
+ */
+function firstGenericAmount(text, skip) {
+  const re = /(\d[\d\s]{3,})\s?(руб|₽|RUB)?/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const clean = m[1].replace(/\s+/g, "");
+    if (skip.has(clean)) continue;
+    return clean;
+  }
+  return null;
+}
+
+/**
  * @returns {{ value: string, confidence: number } | null}
  */
 function extractAmount(text) {
+  const innHit = extractInn(text);
+  const skipInn = new Set(innHit ? [innHit.value] : []);
+
   let match = text.match(
-    /сумма[^:\d]{0,48}:\s*(\d[\d\s]{3,})\s*(?:руб|₽|RUB|рубл(?:ей|я)?)?/i
+    /сумма[^:\d]{0,48}:\s*(\d[\d\s]{3,})\s*(?:руб|₽|RUB|рубл(?:ей|я)?)?/iu
   );
   if (!match) {
     match = text.match(
-      /(?:сумма|amount)\s*[:.]?\s*(\d[\d\s]{3,})\s*(?:руб|₽|RUB)?/i
+      /(?:сумма|amount)\s*[:.]?\s*(\d[\d\s]{3,})\s*(?:руб|₽|RUB)?/iu
     );
   }
-  if (!match) {
-    match = text.match(/(\d[\d\s]{3,})\s?(руб|₽|RUB)?/i);
+  if (match) {
+    const clean = match[1].replace(/\s+/g, "");
+    if (skipInn.has(clean)) {
+      const alt = firstGenericAmount(text, skipInn);
+      if (!alt) return null;
+      return { value: alt, confidence: 0.95 };
+    }
+    return { value: clean, confidence: 0.95 };
   }
-  if (!match) return null;
 
-  const clean = match[1].replace(/\s+/g, "");
-  return {
-    value: clean,
-    confidence: 0.95
-  };
+  const alt = firstGenericAmount(text, skipInn);
+  if (!alt) return null;
+  return { value: alt, confidence: 0.95 };
 }
 
 /**
