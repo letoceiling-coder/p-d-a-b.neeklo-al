@@ -1,7 +1,5 @@
-const {
-  saveIncomingFile,
-  processDocument
-} = require("./service");
+const { saveBufferAsDocument, processDocument } = require("./service");
+const { parseFieldsConfigPayload } = require("./extractionUpload");
 const { prisma } = require("../../lib/prisma");
 const { requireAuth, isElevated } = require("../../middleware/auth");
 
@@ -10,24 +8,59 @@ async function documentsRoutes(fastify) {
     "/documents/upload",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const part = await request.file();
-      if (!part) {
+      let fileBuf = null;
+      let filename = "";
+      /** @type {string | null} */
+      let fieldsConfigRaw = null;
+
+      try {
+        for await (const part of request.parts()) {
+          if (part.type === "file") {
+            if (part.fieldname === "file") {
+              fileBuf = await part.toBuffer();
+              filename = part.filename || "document";
+            } else {
+              await part.toBuffer();
+            }
+          } else if (part.fieldname === "fieldsConfig") {
+            fieldsConfigRaw =
+              part.value != null ? String(part.value) : null;
+          }
+        }
+      } catch (err) {
+        request.log.error(err);
+        return reply.code(400).send({ error: "Некорректное тело запроса" });
+      }
+
+      if (!fileBuf || !filename) {
         return reply.code(400).send({ error: "File is required" });
       }
 
-      const ext = (part.filename || "").toLowerCase();
+      const ext = filename.toLowerCase();
       if (!ext.endsWith(".pdf") && !ext.endsWith(".docx")) {
         return reply
           .code(400)
           .send({ error: "Only PDF and DOCX are allowed" });
       }
 
+      const extractionPayload = parseFieldsConfigPayload(fieldsConfigRaw);
+      if (
+        fieldsConfigRaw &&
+        extractionPayload &&
+        extractionPayload.fields.length === 0
+      ) {
+        return reply.code(400).send({
+          error: "Укажите хотя бы одно допустимое поле для извлечения"
+        });
+      }
+
       try {
-        const filePath = await saveIncomingFile(part);
+        const filePath = await saveBufferAsDocument(fileBuf, filename);
         const doc = await processDocument({
           userId: request.user.id,
           filePath,
-          originalName: part.filename
+          originalName: filename,
+          extractionPayload: extractionPayload || undefined
         });
 
         return reply.code(201).send({

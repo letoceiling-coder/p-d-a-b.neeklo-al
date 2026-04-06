@@ -1,4 +1,5 @@
-const AI_TIMEOUT_MS = 10_000;
+/** Два последовательных вызова AI (извлечение + проверка JSON). */
+const AI_TIMEOUT_MS = 20_000;
 
 /**
  * @param {string} message

@@ -5,6 +5,7 @@ import { Header } from '../components/Header'
 const titles: Record<string, string> = {
   '/app/dashboard': 'Панель',
   '/app/documents': 'Документы',
+  '/app/settings/extraction': 'Настройки извлечения',
   '/app/users': 'Пользователи',
   '/app/users/new': 'Новый пользователь',
 }
@@ -16,6 +17,9 @@ function titleFromPath(pathname: string): string {
   }
   if (pathname.startsWith('/app/users/') && pathname.includes('/delete')) {
     return 'Удаление пользователя'
+  }
+  if (pathname.startsWith('/app/documents/') && pathname.endsWith('/view')) {
+    return 'Анализ договора'
   }
   if (pathname.startsWith('/app/documents/') && pathname.endsWith('/result')) {
     return 'Результат документа'

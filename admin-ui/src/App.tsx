@@ -11,6 +11,8 @@ import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DocumentsPage } from './pages/DocumentsPage'
 import { DocumentResultPage } from './pages/DocumentResultPage'
+import { DocumentViewPage } from './pages/DocumentViewPage'
+import { ExtractionSettingsPage } from './pages/ExtractionSettingsPage'
 import { UsersPage } from './pages/UsersPage'
 import { UserCreatePage } from './pages/UserCreatePage'
 import { UserEditPage } from './pages/UserEditPage'
@@ -53,7 +55,12 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="documents" element={<DocumentsPage />} />
+          <Route path="documents/:id/view" element={<DocumentViewPage />} />
           <Route path="documents/:id/result" element={<DocumentResultPage />} />
+          <Route
+            path="settings/extraction"
+            element={<ExtractionSettingsPage />}
+          />
 
           <Route element={<StaffShell />}>
             <Route path="users" element={<UsersPage />} />

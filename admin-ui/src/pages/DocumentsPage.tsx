@@ -9,6 +9,11 @@ import {
   documentStatusClass,
   documentStatusLabel,
 } from '../lib/documentStatus'
+import {
+  buildUploadFieldsConfig,
+  loadExtractionSettings,
+  validateExtractionSettings,
+} from '../lib/extractionSettings'
 
 export function DocumentsPage() {
   const [items, setItems] = useState<DocumentRow[]>([])
@@ -41,7 +46,18 @@ export function DocumentsPage() {
     setUploadMsg(null)
     setUploading(true)
     try {
-      await uploadDocument(file)
+      const settings = loadExtractionSettings()
+      const invalid = validateExtractionSettings(settings)
+      if (invalid) {
+        setUploadMsg(invalid)
+        return
+      }
+      const cfg = buildUploadFieldsConfig(settings)
+      if (!cfg) {
+        setUploadMsg('Настройте поля извлечения в разделе «Извлечение».')
+        return
+      }
+      await uploadDocument(file, cfg)
       setUploadMsg('Файл отправлен на обработку.')
       await load()
     } catch (err) {
@@ -61,7 +77,14 @@ export function DocumentsPage() {
         </h2>
         <p className="mt-1 text-sm text-slate-500">
           Форматы: PDF или DOCX. После загрузки документ обрабатывается
-          автоматически.
+          автоматически. Состав полей задаётся в{' '}
+          <Link
+            to="/app/settings/extraction"
+            className="font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            настройках извлечения
+          </Link>
+          .
         </p>
         <div className="mt-4">
           <label className="inline-flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 hover:border-indigo-400 hover:bg-indigo-50/40">
@@ -132,12 +155,20 @@ export function DocumentsPage() {
                       {new Date(d.createdAt).toLocaleString('ru-RU')}
                     </td>
                     <td className="px-6 py-3 text-right">
-                      <Link
-                        to={`/app/documents/${d.id}/result`}
-                        className="font-medium text-indigo-600 hover:text-indigo-800"
-                      >
-                        Открыть результат
-                      </Link>
+                      <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                        <Link
+                          to={`/app/documents/${d.id}/view`}
+                          className="font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          Анализ
+                        </Link>
+                        <Link
+                          to={`/app/documents/${d.id}/result`}
+                          className="font-medium text-slate-600 hover:text-slate-900"
+                        >
+                          JSON
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

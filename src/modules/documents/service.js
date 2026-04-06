@@ -3,6 +3,7 @@ const path = require("path");
 const { prisma } = require("../../lib/prisma");
 const { parsePdf, parseDocx } = require("../../lib/parsers");
 const { extractFields } = require("../../lib/ollama");
+const { loadFieldDescriptors } = require("./fieldDescriptors");
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "documents");
 
@@ -21,11 +22,20 @@ function getParserByExt(ext) {
 }
 
 async function saveIncomingFile(part) {
+  const buf = await part.toBuffer();
+  return saveBufferAsDocument(buf, part.filename || "upload");
+}
+
+/**
+ * @param {Buffer} buf
+ * @param {string} originalName
+ * @returns {Promise<string>}
+ */
+async function saveBufferAsDocument(buf, originalName) {
   await ensureUploadDir();
-  const ext = getExt(part.filename);
+  const ext = getExt(originalName);
   const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
   const filePath = path.join(UPLOAD_DIR, safeName);
-  const buf = await part.toBuffer();
   await fs.writeFile(filePath, buf);
   return filePath;
 }
@@ -35,10 +45,25 @@ function isAiFailurePayload(extracted) {
   if (extracted.status === "FAILED") return true;
   if (extracted.error === "AI extraction failed") return true;
   if (extracted.error === "AI unavailable") return true;
-  return false;
+  if (extracted.error === "No extraction fields configured") return true;
+  if (extracted.fields && typeof extracted.fields === "object") return false;
+  if ("inn" in extracted || "amount" in extracted) return false;
+  return true;
 }
 
-async function processDocument({ userId, filePath, originalName }) {
+/**
+ * @param {object} opts
+ * @param {string} opts.userId
+ * @param {string} opts.filePath
+ * @param {string} opts.originalName
+ * @param {{ fields: Array<{ key: string, name: string, type: string }>, extractRisks: boolean } | null} [opts.extractionPayload]
+ */
+async function processDocument({
+  userId,
+  filePath,
+  originalName,
+  extractionPayload = null
+}) {
   const parser = getParserByExt(getExt(originalName));
   const text = await parser(filePath);
 
@@ -51,13 +76,37 @@ async function processDocument({ userId, filePath, originalName }) {
     }
   });
 
-  const extracted = await extractFields(text);
+  let fieldDescriptors;
+  if (
+    extractionPayload &&
+    Array.isArray(extractionPayload.fields) &&
+    extractionPayload.fields.length > 0
+  ) {
+    fieldDescriptors = extractionPayload.fields;
+  } else {
+    fieldDescriptors = await loadFieldDescriptors(prisma, null);
+  }
+
+  const extractRisks =
+    extractionPayload && extractionPayload.extractRisks === false
+      ? false
+      : true;
+
+  const storedFieldsConfig = {
+    fields: fieldDescriptors,
+    extractRisks
+  };
+
+  const extracted = await extractFields(text, fieldDescriptors, {
+    extractRisks
+  });
   const failed = isAiFailurePayload(extracted);
 
   const updated = await prisma.document.update({
     where: { id: created.id },
     data: {
       extractedJson: extracted,
+      fieldsConfig: storedFieldsConfig,
       status: failed ? "FAILED" : "DONE"
     }
   });
@@ -67,5 +116,6 @@ async function processDocument({ userId, filePath, originalName }) {
 
 module.exports = {
   saveIncomingFile,
+  saveBufferAsDocument,
   processDocument
 };

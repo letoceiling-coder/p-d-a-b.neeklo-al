@@ -1,22 +1,21 @@
+"use strict";
+
 const { callAI } = require("./aiClient");
+const {
+  buildExtractionPrompt,
+  buildVerificationPrompt
+} = require("./extractionPrompt");
+const {
+  migrateLegacyAiPayload,
+  ensureFieldShape,
+  applyFieldValidators,
+  normalizeRisks,
+  buildMeta
+} = require("./extractionNormalize");
 
-function buildPrompt(text) {
-  return `
-Ты извлекаешь данные из договора.
-Верни строго JSON без markdown и комментариев:
-{
-  "inn": "...",
-  "amount": "...",
-  "start_date": "...",
-  "end_date": "...",
-  "payment_terms": "..."
-}
-Если значения нет, поставь пустую строку.
-
-Текст договора:
-${text.slice(0, 20000)}
-`.trim();
-}
+/**
+ * @typedef {{ key: string, name: string, type: 'string' | 'date' | 'number' }} FieldDescriptor
+ */
 
 /**
  * Поддержка типовых форматов ответа gateway (порядок по контракту).
@@ -55,7 +54,6 @@ function extractFirstJsonString(raw) {
 }
 
 /**
- * Проверка и парсинг JSON объекта из сырой строки ответа.
  * @param {string} raw
  * @returns {{ ok: true, obj: Record<string, unknown> } | { ok: false }}
  */
@@ -64,16 +62,11 @@ function parseExtractedJson(raw) {
   const jsonStr = extractFirstJsonString(String(raw));
   if (!jsonStr) return { ok: false };
   try {
-    JSON.parse(jsonStr);
-  } catch {
-    return { ok: false };
-  }
-  try {
     const obj = JSON.parse(jsonStr);
-    JSON.parse(JSON.stringify(obj));
     if (obj === null || typeof obj !== "object" || Array.isArray(obj)) {
       return { ok: false };
     }
+    JSON.parse(JSON.stringify(obj));
     return { ok: true, obj };
   } catch {
     return { ok: false };
@@ -81,12 +74,17 @@ function parseExtractedJson(raw) {
 }
 
 /**
- * Извлечение полей договора через AI Gateway.
- * Не бросает наружу: при фатальной ошибке AI возвращает { status, error } или { error }.
+ * Извлечение с confidence, вторым проходом AI и пост-валидацией.
  * @param {string} text
+ * @param {FieldDescriptor[]} fieldDescriptors
+ * @param {{ extractRisks?: boolean }} [options]
  * @returns {Promise<Record<string, unknown>>}
  */
-async function extractFields(text) {
+async function extractFields(text, fieldDescriptors, options = {}) {
+  const descriptors =
+    fieldDescriptors && fieldDescriptors.length > 0 ? fieldDescriptors : [];
+  const extractRisks = options.extractRisks !== false;
+
   console.log("EXTRACTION INPUT:", text.slice(0, 500));
 
   try {
@@ -97,17 +95,21 @@ async function extractFields(text) {
       return out;
     }
 
-    const prompt = buildPrompt(text);
+    if (!descriptors.length) {
+      const out = { error: "No extraction fields configured" };
+      console.log("EXTRACTION OUTPUT:", out);
+      return out;
+    }
 
+    const prompt = buildExtractionPrompt(text, descriptors, { extractRisks });
+
+    let parsed = { ok: false, obj: undefined };
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const data = await callAI(prompt, assistantId);
         const raw = replyTextFromGatewayBody(data);
-        const parsed = parseExtractedJson(raw);
-        if (parsed.ok) {
-          console.log("EXTRACTION OUTPUT:", parsed.obj);
-          return parsed.obj;
-        }
+        parsed = parseExtractedJson(raw);
+        if (parsed.ok) break;
       } catch (err) {
         console.error("EXTRACT callAI failed:", err);
         const out = { status: "FAILED", error: "AI unavailable" };
@@ -116,8 +118,58 @@ async function extractFields(text) {
       }
     }
 
-    const out = { error: "AI extraction failed" };
-    console.log("EXTRACTION OUTPUT:", out);
+    if (!parsed.ok || !parsed.obj) {
+      const out = { error: "AI extraction failed" };
+      console.log("EXTRACTION OUTPUT:", out);
+      return out;
+    }
+
+    let obj = migrateLegacyAiPayload(parsed.obj, descriptors);
+    if (!obj.fields || typeof obj.fields !== "object") {
+      const out = { error: "AI extraction failed" };
+      console.log("EXTRACTION OUTPUT:", out);
+      return out;
+    }
+
+    let secondPassOk = false;
+    try {
+      const payload = JSON.stringify({
+        fields: obj.fields,
+        risks: extractRisks
+          ? Array.isArray(obj.risks)
+            ? obj.risks
+            : []
+          : []
+      });
+      const verifyPrompt = buildVerificationPrompt(payload);
+      const data2 = await callAI(verifyPrompt, assistantId);
+      const raw2 = replyTextFromGatewayBody(data2);
+      const p2 = parseExtractedJson(raw2);
+      if (p2.ok && p2.obj) {
+        const verified = migrateLegacyAiPayload(p2.obj, descriptors);
+        if (verified.fields && typeof verified.fields === "object") {
+          obj = verified;
+          secondPassOk = true;
+        }
+      }
+    } catch (err) {
+      console.error("VERIFY callAI failed:", err);
+    }
+
+    let fields = ensureFieldShape(obj.fields, descriptors);
+    fields = applyFieldValidators(fields, descriptors);
+    let risks = extractRisks ? normalizeRisks(obj.risks) : [];
+    const meta = {
+      ...buildMeta(fields, risks, secondPassOk),
+      extractRisks
+    };
+
+    const out = {
+      fields,
+      risks,
+      meta
+    };
+    console.log("EXTRACTION OUTPUT meta:", out.meta);
     return out;
   } catch (fatal) {
     console.error("EXTRACTION FATAL:", fatal);
@@ -130,5 +182,7 @@ async function extractFields(text) {
 module.exports = {
   extractFields,
   replyTextFromGatewayBody,
-  buildPrompt
+  buildExtractionPrompt,
+  buildVerificationPrompt,
+  parseExtractedJson
 };

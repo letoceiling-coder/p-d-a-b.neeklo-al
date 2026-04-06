@@ -23,6 +23,14 @@ export interface DocumentRow {
   updatedAt: string
 }
 
+/** Полная запись документа (GET /documents/:id) */
+export interface DocumentDetail extends DocumentRow {
+  text: string
+  extractedJson?: unknown
+  /** Снимок полей извлечения [{ key, name, type }] */
+  fieldsConfig?: unknown
+}
+
 export interface DocumentsListResponse {
   items: DocumentRow[]
 }

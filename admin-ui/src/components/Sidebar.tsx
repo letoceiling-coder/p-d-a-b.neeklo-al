@@ -33,6 +33,14 @@ export function Sidebar() {
         >
           Документы
         </NavLink>
+        <NavLink
+          to="/app/settings/extraction"
+          className={({ isActive }) =>
+            `${linkClass} ${isActive ? activeClass : ''}`
+          }
+        >
+          Извлечение
+        </NavLink>
         {canManageUsers ? (
           <NavLink
             to="/app/users"

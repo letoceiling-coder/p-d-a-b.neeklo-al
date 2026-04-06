@@ -1,4 +1,5 @@
 import type {
+  DocumentDetail,
   DocumentResultResponse,
   DocumentsListResponse,
   LoginResponse,
@@ -6,9 +7,8 @@ import type {
   UsersListResponse,
 } from '../types'
 
-const API_BASE =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? '/api' : '')
+/** Dev: Vite proxy /api → backend. Prod: nginx /api/ → backend. */
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 const TOKEN_KEY = 'pdab_token'
 const USER_KEY = 'pdab_user'
@@ -82,9 +82,20 @@ export async function fetchDocuments(): Promise<DocumentsListResponse> {
   return res.json() as Promise<DocumentsListResponse>
 }
 
-export async function uploadDocument(file: File): Promise<{ id: string; status: string }> {
+export type UploadFieldsConfigPayload = {
+  fields: Array<{ key: string; name: string; type: string }>
+  extractRisks: boolean
+}
+
+export async function uploadDocument(
+  file: File,
+  fieldsConfig?: UploadFieldsConfigPayload | null
+): Promise<{ id: string; status: string }> {
   const fd = new FormData()
   fd.append('file', file)
+  if (fieldsConfig) {
+    fd.append('fieldsConfig', JSON.stringify(fieldsConfig))
+  }
   const res = await fetch(`${API_BASE}/documents/upload`, {
     method: 'POST',
     headers: buildHeaders({ body: fd }),
@@ -92,6 +103,14 @@ export async function uploadDocument(file: File): Promise<{ id: string; status: 
   })
   if (!res.ok) throw new Error(await parseError(res))
   return res.json() as Promise<{ id: string; status: string }>
+}
+
+export async function fetchDocument(id: string): Promise<DocumentDetail> {
+  const res = await fetch(`${API_BASE}/documents/${id}`, {
+    headers: buildHeaders(),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<DocumentDetail>
 }
 
 export async function fetchDocumentResult(
