@@ -396,6 +396,22 @@ function extractSubject(text) {
   };
 }
 
+function extractContractNumber(text) {
+  if (!text) return null;
+
+  const match = text.match(
+    /(договор\s*№?\s*[:\s]*)([A-Za-zА-Яа-я0-9\-\/]+)/iu
+  );
+
+  if (!match) return null;
+
+  return {
+    value: match[2].trim(),
+    confidence: 0.95,
+    source: "rule"
+  };
+}
+
 /**
  * @param {string} text
  * @param {Array<{ key: string, name?: string }>} fields
@@ -407,6 +423,14 @@ function applyRuleEngine(text, fields) {
     result.subject = extractSubject(text);
   }
   console.log("SUBJECT EXTRACTED:", result["subject"]);
+
+  if (fields.some((f) => f.key === "contract_number")) {
+    const resultCN = extractContractNumber(text);
+    if (resultCN) {
+      result.contract_number = resultCN;
+    }
+  }
+  console.log("CONTRACT NUMBER RULE:", result["contract_number"]);
 
   for (const field of fields) {
     let extracted = null;
@@ -433,6 +457,10 @@ function applyRuleEngine(text, fields) {
 
     if (field.key === "subject" && result.subject) {
       extracted = result.subject;
+    }
+
+    if (field.key === "contract_number" && result.contract_number) {
+      extracted = result.contract_number;
     }
 
     if (extracted) {
