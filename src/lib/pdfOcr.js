@@ -14,7 +14,7 @@ async function extractPdfViaOCR(buffer) {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const pdfPath = path.join(tmpDir, `ocr-src-${id}.pdf`);
   const ppmPrefix = path.join(tmpDir, `ocr-page-${id}`);
-  const pngPath = `${ppmPrefix}-1.png`;
+  const pngPath = `${ppmPrefix}.png`;
 
   await fs.writeFile(pdfPath, buffer);
   try {
