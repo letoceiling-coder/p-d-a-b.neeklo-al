@@ -39,9 +39,11 @@ function detectBadText(text) {
 
   const badChars = (text.match(/[�ÐÑ¥%]/g) || []).length;
   const ratio = badChars / text.length;
+  const ruCount = (text.match(/[а-яА-Я]/g) || []).length;
 
   if (ratio > 0.1) return true;
   if (!/[а-яА-Я]/.test(text)) return true;
+  if (ruCount < 20) return true;
 
   return false;
 }
