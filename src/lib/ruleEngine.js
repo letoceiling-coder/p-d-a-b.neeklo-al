@@ -309,7 +309,7 @@ function allDatesInOrder(text) {
  */
 function extractStartDate(text) {
   const match = text.match(
-    new RegExp(`(начал[ао]|дата начала)[^\\d]*(${DATE_INNER})`, "iu")
+    /(начал[ао]|дата начала|действует с|вступает в силу)[^\d]{0,50}(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})/iu
   );
   if (!match) return null;
 
@@ -327,7 +327,7 @@ function extractStartDate(text) {
  */
 function extractEndDate(text) {
   const match = text.match(
-    new RegExp(`(окончан[ия]|дата окончания)[^\\d]*(${DATE_INNER})`, "iu")
+    /(окончан[ия]|дата окончания|действует до|срок до|по\s+\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})[^\d]{0,50}(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})/iu
   );
   if (!match) return null;
 
@@ -360,6 +360,19 @@ function extractDateFallbackEnd(text) {
   return { value: dates[1], confidence: 0.6 };
 }
 
+function extractSubject(text) {
+  const match = text.match(
+    /(предмет договора|исполнитель обязуется|предмет:)[^\n]{0,300}/iu
+  );
+
+  if (!match) return null;
+
+  return {
+    value: match[0].trim(),
+    confidence: 0.9
+  };
+}
+
 /**
  * @param {string} text
  * @param {Array<{ key: string, name?: string }>} fields
@@ -367,6 +380,14 @@ function extractDateFallbackEnd(text) {
  */
 function applyRuleEngine(text, fields) {
   const result = {};
+  const subject = extractSubject(text);
+  if (subject) {
+    result.subject = {
+      ...subject,
+      source: "rule"
+    };
+  }
+  console.log("SUBJECT FOUND:", result["subject"]);
 
   for (const field of fields) {
     let extracted = null;
@@ -389,6 +410,10 @@ function applyRuleEngine(text, fields) {
       extracted = extractEndDate(text);
       if (extracted) console.log("RULE DATE HIT:", field.key);
       if (!extracted) extracted = extractDateFallbackEnd(text);
+    }
+
+    if (field.key === "subject" && result.subject) {
+      extracted = result.subject;
     }
 
     if (extracted) {
