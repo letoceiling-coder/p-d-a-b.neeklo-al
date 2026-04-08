@@ -62,30 +62,14 @@ async function extractPDF(buffer) {
     fullText += strings.join(" ") + "\n";
   }
 
-  const parsed = fixMojibake(fullText);
-  console.log("PDF TEXT PREVIEW:", parsed.slice(0, 300));
-  console.log("TEXT AFTER FIX:", parsed.slice(0, 200));
-
-  if (isGoodText(parsed)) {
-    console.log("PDF OK");
-    return parsed;
-  }
-
-  console.log("PDF BAD → TRY OCR");
+  console.log("FORCE OCR MODE");
+  const parsed = null;
+  void parsed;
 
   const ocr = await extractPdfViaOCR(buffer);
   console.log("OCR TEXT PREVIEW:", (ocr || "").slice(0, 200));
-  console.log("TEXT AFTER FIX:", (ocr || "").slice(0, 200));
-
-  if (isGoodText(ocr)) {
-    console.log("OCR OK");
-    return ocr;
-  }
-
-  console.log("DOCUMENT UNREADABLE");
-  return {
-    __error: "DOCUMENT_UNREADABLE"
-  };
+  console.log("OCR TEXT FULL PREVIEW:", (ocr || "").slice(0, 500));
+  return ocr;
 }
 
 module.exports = { extractPDF };
