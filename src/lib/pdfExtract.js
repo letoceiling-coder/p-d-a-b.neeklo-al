@@ -1,6 +1,7 @@
 "use strict";
 
 let pdfjsLibPromise = null;
+const { extractPdfViaOCR } = require("./pdfOcr");
 
 async function getPdfJsLib() {
   if (!pdfjsLibPromise) {
@@ -24,6 +25,15 @@ function fixMojibake(text) {
   return text;
 }
 
+function isTextBroken(text) {
+  if (!text) return true;
+
+  const badChars = (text.match(/[�ÐÑ]/g) || []).length;
+  const ratio = badChars / text.length;
+
+  return ratio > 0.05;
+}
+
 async function extractPDF(buffer) {
   const pdfjsLib = await getPdfJsLib();
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
@@ -39,6 +49,12 @@ async function extractPDF(buffer) {
   }
 
   const text = fixMojibake(fullText);
+  if (isTextBroken(text)) {
+    console.log("PDF TEXT BROKEN → USING OCR");
+    const ocrText = await extractPdfViaOCR(buffer);
+    console.log("OCR TEXT PREVIEW:", (ocrText || "").slice(0, 200));
+    return ocrText;
+  }
   console.log("PDF TEXT PREVIEW:", text.slice(0, 300));
   console.log("TEXT AFTER FIX:", text.slice(0, 200));
   return text;
