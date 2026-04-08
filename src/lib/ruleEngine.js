@@ -400,13 +400,20 @@ function extractContractNumber(text) {
   if (!text) return null;
 
   const match = text.match(
-    /(договор\s*№?\s*[:\s]*)([A-Za-zА-Яа-я0-9\-\/]+)/iu
+    /(?:договор|контракт)[^\n]{0,50}№\s*([A-Za-zА-Яа-я0-9\-\/]+)/iu
   );
 
   if (!match) return null;
 
+  const value = match[1].trim();
+
+  if (!/[0-9]/.test(value)) {
+    console.log("SKIP INVALID CONTRACT NUMBER:", value);
+    return null;
+  }
+
   return {
-    value: match[2].trim(),
+    value,
     confidence: 0.95,
     source: "rule"
   };
@@ -428,9 +435,9 @@ function applyRuleEngine(text, fields) {
     const resultCN = extractContractNumber(text);
     if (resultCN) {
       result.contract_number = resultCN;
+      console.log("CONTRACT NUMBER RULE:", resultCN.value);
     }
   }
-  console.log("CONTRACT NUMBER RULE:", result["contract_number"]);
 
   for (const field of fields) {
     let extracted = null;
