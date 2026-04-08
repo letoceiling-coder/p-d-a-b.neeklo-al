@@ -1,6 +1,6 @@
 const fs = require("fs/promises");
-const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
+const { extractPDF } = require("./pdfExtract");
 
 function fixEncoding(text) {
   if (!text) return text;
@@ -10,10 +10,8 @@ function fixEncoding(text) {
 
 async function parsePdf(filePath) {
   const fileBuffer = await fs.readFile(filePath);
-  const parsed = await pdfParse(fileBuffer);
-  const text = fixEncoding((parsed.text || "").trim());
-  console.log("TEXT PREVIEW FIXED:", (text || "").slice(0, 200));
-  return text;
+  const text = await extractPDF(fileBuffer);
+  return (text || "").trim();
 }
 
 async function parseDocx(filePath) {
