@@ -45,6 +45,7 @@ async function extractMultiPass(text, fields) {
     try {
       if (ruleResult[field.key]) {
         console.log("RULE HIT:", field.key);
+        console.log("LLM SKIPPED (RULE EXISTS):", field.key);
         result.fields[field.key] = { ...ruleResult[field.key] };
         continue;
       }
