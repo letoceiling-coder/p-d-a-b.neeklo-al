@@ -33,13 +33,19 @@ async function extractMultiPass(text, fields) {
     meta: {}
   };
 
-  const ruleResults = applyRuleEngine(text, fields);
+  console.log("--- EXTRACTION START ---");
+  console.log("TEXT LENGTH:", text.length);
+  console.log("TEXT PREVIEW:", text.slice(0, 500));
+
+  const ruleResult = applyRuleEngine(text, fields);
+  const llmResult = {};
+  console.log("RULE RESULT:", ruleResult);
 
   for (const field of fields) {
     try {
-      if (ruleResults[field.key]) {
+      if (ruleResult[field.key]) {
         console.log("RULE HIT:", field.key);
-        result.fields[field.key] = { ...ruleResults[field.key] };
+        result.fields[field.key] = { ...ruleResult[field.key] };
         continue;
       }
 
@@ -82,11 +88,18 @@ async function extractMultiPass(text, fields) {
         }
       }
 
-      result.fields[field.key] = {
-        value: value ?? null,
-        confidence,
-        source: "llm"
-      };
+      const existing = result.fields[field.key];
+
+      if (!existing || existing.source !== "rule") {
+        result.fields[field.key] = {
+          value: value ?? null,
+          confidence,
+          source: "llm"
+        };
+        llmResult[field.key] = { ...result.fields[field.key] };
+      } else {
+        console.log("LLM SKIPPED (RULE EXISTS):", field.key);
+      }
     } catch (err) {
       console.error("FIELD ERROR:", field.key, err?.message);
       result.fields[field.key] = {
@@ -95,11 +108,16 @@ async function extractMultiPass(text, fields) {
         source: "",
         error: "timeout_or_ai_error"
       };
+      llmResult[field.key] = { ...result.fields[field.key] };
       if (!result.meta) result.meta = {};
       result.meta.partialExtraction = true;
       continue;
     }
   }
+
+  const finalResult = result;
+  console.log("LLM RESULT:", llmResult);
+  console.log("FINAL RESULT:", finalResult);
 
   return result;
 }
