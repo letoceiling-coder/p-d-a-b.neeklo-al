@@ -6,6 +6,14 @@
  * @returns {Array<{ role: string, content: string }>}
  */
 function buildFieldPrompt(text, field) {
+  const SYSTEM_FIELDS = new Set([
+    "subject",
+    "start_date",
+    "end_date",
+    "contract_amount",
+    "inn"
+  ]);
+
   if (field.key === "subject") {
     return [
       {
@@ -36,10 +44,11 @@ function buildFieldPrompt(text, field) {
     ];
   }
 
-  return [
-    {
-      role: "system",
-      content: `Ты API. Верни ТОЛЬКО JSON.
+  if (SYSTEM_FIELDS.has(field.key)) {
+    return [
+      {
+        role: "system",
+        content: `Ты API. Верни ТОЛЬКО JSON.
 
 ФОРМАТ:
 {
@@ -56,13 +65,42 @@ function buildFieldPrompt(text, field) {
 * НЕ ПРИДУМЫВАТЬ
 
 Начни с { и закончи }.`
-    },
-    {
-      role: "user",
-      content: `Поле: ${field.name || field.key}
+      },
+      {
+        role: "user",
+        content: `Поле: ${field.name || field.key}
 
 Текст договора:
 ${text.slice(0, 12000)}`
+      }
+    ];
+  }
+
+  console.log("CUSTOM FIELD PROMPT:", field.key);
+  // fallback для кастомных полей
+  return [
+    {
+      role: "system",
+      content: `
+Ты анализируешь договор.
+
+Найди значение поля: "${field.name || field.key}".
+
+Это может быть:
+- прямое упоминание
+- рядом с похожими словами
+- в заголовках или реквизитах
+
+Верни краткое значение.
+
+Ответ строго JSON:
+
+{ "value": "...", "confidence": 0.7 }
+`
+    },
+    {
+      role: "user",
+      content: text.slice(0, 12000)
     }
   ];
 }
