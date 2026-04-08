@@ -25,27 +25,27 @@ function fixMojibake(text) {
   return text;
 }
 
-function isTextBroken(text) {
-  if (!text) return true;
+function isGoodText(text) {
+  if (!text) return false;
 
-  const badChars = (text.match(/[�ÐÑ]/g) || []).length;
-  const ratio = badChars / text.length;
+  if (text.length < 200) return false;
 
-  return ratio > 0.05;
-}
+  const ru = (text.match(/[а-яА-Я]/g) || []).length;
+  const bad = (text.match(/[�ÐÑ¥%]/g) || []).length;
 
-function detectBadText(text) {
-  if (!text) return true;
+  const ruRatio = ru / text.length;
+  const badRatio = bad / text.length;
 
-  const badChars = (text.match(/[�ÐÑ¥%]/g) || []).length;
-  const ratio = badChars / text.length;
-  const ruCount = (text.match(/[а-яА-Я]/g) || []).length;
+  console.log("TEXT QUALITY:", {
+    length: text.length,
+    ruRatio,
+    badRatio
+  });
 
-  if (ratio > 0.1) return true;
-  if (!/[а-яА-Я]/.test(text)) return true;
-  if (ruCount < 20) return true;
+  if (ruRatio < 0.2) return false;
+  if (badRatio > 0.05) return false;
 
-  return false;
+  return true;
 }
 
 async function extractPDF(buffer) {
@@ -62,23 +62,30 @@ async function extractPDF(buffer) {
     fullText += strings.join(" ") + "\n";
   }
 
-  const text = fixMojibake(fullText);
-  if (isTextBroken(text)) {
-    console.log("PDF TEXT BROKEN → USING OCR");
-    const ocrText = await extractPdfViaOCR(buffer);
-    console.log("OCR TEXT PREVIEW:", (ocrText || "").slice(0, 200));
-    if (detectBadText(ocrText)) {
-      console.log("DOCUMENT UNREADABLE");
-      return {
-        __error: "DOCUMENT_UNREADABLE",
-        text: ocrText
-      };
-    }
-    return ocrText;
+  const parsed = fixMojibake(fullText);
+  console.log("PDF TEXT PREVIEW:", parsed.slice(0, 300));
+  console.log("TEXT AFTER FIX:", parsed.slice(0, 200));
+
+  if (isGoodText(parsed)) {
+    console.log("PDF OK");
+    return parsed;
   }
-  console.log("PDF TEXT PREVIEW:", text.slice(0, 300));
-  console.log("TEXT AFTER FIX:", text.slice(0, 200));
-  return text;
+
+  console.log("PDF BAD → TRY OCR");
+
+  const ocr = await extractPdfViaOCR(buffer);
+  console.log("OCR TEXT PREVIEW:", (ocr || "").slice(0, 200));
+  console.log("TEXT AFTER FIX:", (ocr || "").slice(0, 200));
+
+  if (isGoodText(ocr)) {
+    console.log("OCR OK");
+    return ocr;
+  }
+
+  console.log("DOCUMENT UNREADABLE");
+  return {
+    __error: "DOCUMENT_UNREADABLE"
+  };
 }
 
 module.exports = { extractPDF };
