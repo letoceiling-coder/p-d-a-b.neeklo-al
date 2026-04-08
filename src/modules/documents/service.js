@@ -56,7 +56,7 @@ function isAiFailurePayload(extracted) {
  * @param {string} opts.userId
  * @param {string} opts.filePath
  * @param {string} opts.originalName
- * @param {{ fields: Array<{ key: string, name: string, type: string }>, extractRisks: boolean } | null} [opts.extractionPayload]
+ * @param {{ fields: Array<{ key: string, name: string, type: string, enabled?: boolean }>, extractRisks: boolean } | null} [opts.extractionPayload]
  */
 async function processDocument({
   userId,
@@ -65,7 +65,20 @@ async function processDocument({
   extractionPayload = null
 }) {
   const parser = getParserByExt(getExt(originalName));
-  const text = await parser(filePath);
+  const parsedText = await parser(filePath);
+  if (
+    parsedText &&
+    typeof parsedText === "object" &&
+    parsedText.__error === "DOCUMENT_UNREADABLE"
+  ) {
+    console.log("DOCUMENT QUALITY FAILED");
+    return {
+      status: "error",
+      error: "DOCUMENT_UNREADABLE",
+      message: "Документ не удалось распознать. Загрузите более качественный файл."
+    };
+  }
+  const text = parsedText;
 
   const created = await prisma.document.create({
     data: {
@@ -97,7 +110,11 @@ async function processDocument({
     extractRisks
   };
 
-  const extracted = await extractFields(text, fieldDescriptors, {
+  const enabledFields = fieldDescriptors.filter((f) => f.enabled === true);
+  const fieldsForExtraction =
+    enabledFields.length > 0 ? enabledFields : fieldDescriptors;
+
+  const extracted = await extractFields(text, fieldsForExtraction, {
     extractRisks
   });
   const failed = isAiFailurePayload(extracted);

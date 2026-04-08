@@ -63,6 +63,10 @@ async function documentsRoutes(fastify) {
           extractionPayload: extractionPayload || undefined
         });
 
+        if (doc && doc.error === "DOCUMENT_UNREADABLE") {
+          return reply.code(422).send(doc);
+        }
+
         return reply.code(201).send({
           id: doc.id,
           status: doc.status

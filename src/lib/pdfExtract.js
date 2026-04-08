@@ -34,6 +34,18 @@ function isTextBroken(text) {
   return ratio > 0.05;
 }
 
+function detectBadText(text) {
+  if (!text) return true;
+
+  const badChars = (text.match(/[�ÐÑ¥%]/g) || []).length;
+  const ratio = badChars / text.length;
+
+  if (ratio > 0.1) return true;
+  if (!/[а-яА-Я]/.test(text)) return true;
+
+  return false;
+}
+
 async function extractPDF(buffer) {
   const pdfjsLib = await getPdfJsLib();
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
@@ -53,6 +65,13 @@ async function extractPDF(buffer) {
     console.log("PDF TEXT BROKEN → USING OCR");
     const ocrText = await extractPdfViaOCR(buffer);
     console.log("OCR TEXT PREVIEW:", (ocrText || "").slice(0, 200));
+    if (detectBadText(ocrText)) {
+      console.log("DOCUMENT UNREADABLE");
+      return {
+        __error: "DOCUMENT_UNREADABLE",
+        text: ocrText
+      };
+    }
     return ocrText;
   }
   console.log("PDF TEXT PREVIEW:", text.slice(0, 300));

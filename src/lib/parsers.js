@@ -20,6 +20,9 @@ function fixMojibake(text) {
 async function parsePdf(filePath) {
   const fileBuffer = await fs.readFile(filePath);
   const text = await extractPDF(fileBuffer);
+  if (text && typeof text === "object" && text.__error === "DOCUMENT_UNREADABLE") {
+    return text;
+  }
   return (text || "").trim();
 }
 
