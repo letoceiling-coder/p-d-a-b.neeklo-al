@@ -361,15 +361,38 @@ function extractDateFallbackEnd(text) {
 }
 
 function extractSubject(text) {
-  const match = text.match(
-    /(предмет договора|исполнитель обязуется|предмет:)[^\n]{0,300}/iu
-  );
+  if (!text) return null;
 
-  if (!match) return null;
+  const lower = text.toLowerCase();
+
+  const anchors = [
+    "предмет договора",
+    "предмет:",
+    "исполнитель обязуется",
+    "по настоящему договору",
+    "обязуется выполнить"
+  ];
+
+  let index = -1;
+
+  for (const a of anchors) {
+    const i = lower.indexOf(a);
+    if (i !== -1) {
+      index = i;
+      break;
+    }
+  }
+
+  if (index === -1) return null;
+
+  const slice = text.slice(index, index + 500);
+  const end = slice.search(/\n\s*\n/);
+  const value = end !== -1 ? slice.slice(0, end) : slice;
 
   return {
-    value: match[0].trim(),
-    confidence: 0.9
+    value: value.trim(),
+    confidence: 0.85,
+    source: "rule"
   };
 }
 
@@ -380,14 +403,10 @@ function extractSubject(text) {
  */
 function applyRuleEngine(text, fields) {
   const result = {};
-  const subject = extractSubject(text);
-  if (subject) {
-    result.subject = {
-      ...subject,
-      source: "rule"
-    };
+  if (fields.some((f) => f.key === "subject")) {
+    result.subject = extractSubject(text);
   }
-  console.log("SUBJECT FOUND:", result["subject"]);
+  console.log("SUBJECT EXTRACTED:", result["subject"]);
 
   for (const field of fields) {
     let extracted = null;
