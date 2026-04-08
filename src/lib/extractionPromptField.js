@@ -44,6 +44,35 @@ function buildFieldPrompt(text, field) {
     ];
   }
 
+  if (field.key === "contract_number") {
+    return [
+      {
+        role: "system",
+        content: `
+Ты анализируешь договор.
+
+Найди НОМЕР ДОГОВОРА.
+
+Это может быть:
+- "№ 123/2026"
+- "Договор №..."
+- "Контракт №..."
+
+Верни только номер (без слов).
+
+Если номера нет — верни null.
+
+Формат:
+{ "value": "...", "confidence": 0.8 }
+`
+      },
+      {
+        role: "user",
+        content: text.slice(0, 12000)
+      }
+    ];
+  }
+
   if (SYSTEM_FIELDS.has(field.key)) {
     return [
       {

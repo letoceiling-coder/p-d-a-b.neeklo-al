@@ -62,6 +62,9 @@ async function extractMultiPass(text, fields) {
       if (field.key === "subject") {
         console.log("LLM SUBJECT RAW:", raw1);
       }
+      if (field.key === "contract_number") {
+        console.log("LLM CONTRACT NUMBER:", raw1);
+      }
 
       if (parsed1 && Object.prototype.hasOwnProperty.call(parsed1, "value")) {
         value = parsed1.value ?? null;
@@ -94,7 +97,7 @@ async function extractMultiPass(text, fields) {
 
       const existing = result.fields[field.key];
 
-      if (!existing || existing.source !== "rule") {
+      if (!existing || !existing.value || existing.source !== "rule") {
         result.fields[field.key] = {
           value: value ?? null,
           confidence,
