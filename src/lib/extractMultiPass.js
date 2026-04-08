@@ -59,6 +59,9 @@ async function extractMultiPass(text, fields) {
 
       console.log("FIELD:", field.key);
       console.log("RAW1:", (raw1 || "").slice(0, 200));
+      if (field.key === "subject") {
+        console.log("LLM SUBJECT RAW:", raw1);
+      }
 
       if (parsed1 && Object.prototype.hasOwnProperty.call(parsed1, "value")) {
         value = parsed1.value ?? null;
