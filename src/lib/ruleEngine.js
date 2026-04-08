@@ -199,6 +199,15 @@ function extractAmountWords(text) {
   };
 }
 
+function isFakeNumber(v) {
+  return /^\d+\.\d+$/.test(v);
+}
+
+function isValidAmount(v) {
+  const num = Number(v.replace(/\s/g, "").replace(",", "."));
+  return num > 1000;
+}
+
 /**
  * @returns {{ value: string, confidence: number, source?: string } | null}
  */
@@ -206,6 +215,11 @@ function extractAmount(text) {
   const contextMatch = text.match(
     /(сумм[аы]|стоимость|цена договора)[^\d]*(\d[\d\s.,]{3,})/iu
   );
+
+  if (contextMatch && isFakeNumber(contextMatch[2])) {
+    console.log("SKIP FAKE AMOUNT:", contextMatch[2]);
+    return null;
+  }
 
   if (contextMatch) {
     const normalized = normalizeAmount(contextMatch[2]);
@@ -223,6 +237,8 @@ function extractAmount(text) {
   const candidates = matches
     .map((m) => {
       const raw = m[1];
+      console.log("AMOUNT RAW:", raw);
+      if (isFakeNumber(raw)) return null;
       const normalized = normalizeAmount(raw);
 
       const start = m.index ?? 0;
@@ -258,7 +274,7 @@ function extractAmount(text) {
         context
       };
     })
-    .filter((c) => c.value);
+    .filter((c) => c && c.value && isValidAmount(c.value));
 
   if (!candidates.length) return extractAmountWords(text);
 
