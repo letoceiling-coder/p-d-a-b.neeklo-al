@@ -21,6 +21,16 @@ function ollamaMessageText(body) {
   return "";
 }
 
+function isValidContractNumber(value) {
+  if (!value) return false;
+
+  if (!/[0-9]/.test(value)) return false;
+  if (value.length > 30) return false;
+  if (value.split(" ").length > 3) return false;
+
+  return true;
+}
+
 /**
  * @param {string} text
  * @param {Array<{ key: string, name?: string }>} fields
@@ -96,6 +106,14 @@ async function extractMultiPass(text, fields) {
       }
 
       const existing = result.fields[field.key];
+
+      if (field.key === "contract_number") {
+        if (!isValidContractNumber(value)) {
+          console.log("INVALID LLM CONTRACT NUMBER:", value);
+          value = null;
+        }
+        console.log("FINAL CONTRACT NUMBER:", value);
+      }
 
       if (!existing || !existing.value || existing.source !== "rule") {
         result.fields[field.key] = {
