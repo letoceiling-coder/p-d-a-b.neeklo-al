@@ -2,10 +2,19 @@ const fs = require("fs/promises");
 const mammoth = require("mammoth");
 const { extractPDF } = require("./pdfExtract");
 
-function fixEncoding(text) {
+function fixMojibake(text) {
   if (!text) return text;
 
-  return Buffer.from(text, "binary").toString("utf8");
+  if (text.includes("Ð") || text.includes("Ñ")) {
+    try {
+      return Buffer.from(text, "latin1").toString("utf8");
+    } catch (e) {
+      console.error("MOJIBAKE FIX ERROR:", e.message);
+      return text;
+    }
+  }
+
+  return text;
 }
 
 async function parsePdf(filePath) {
@@ -16,8 +25,8 @@ async function parsePdf(filePath) {
 
 async function parseDocx(filePath) {
   const parsed = await mammoth.extractRawText({ path: filePath });
-  const text = fixEncoding((parsed.value || "").trim());
-  console.log("TEXT PREVIEW FIXED:", (text || "").slice(0, 200));
+  const text = fixMojibake((parsed.value || "").trim());
+  console.log("TEXT AFTER FIX:", (text || "").slice(0, 200));
   return text;
 }
 

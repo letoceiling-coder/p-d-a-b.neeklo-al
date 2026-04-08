@@ -9,6 +9,21 @@ async function getPdfJsLib() {
   return pdfjsLibPromise;
 }
 
+function fixMojibake(text) {
+  if (!text) return text;
+
+  if (text.includes("Ð") || text.includes("Ñ")) {
+    try {
+      return Buffer.from(text, "latin1").toString("utf8");
+    } catch (e) {
+      console.error("MOJIBAKE FIX ERROR:", e.message);
+      return text;
+    }
+  }
+
+  return text;
+}
+
 async function extractPDF(buffer) {
   const pdfjsLib = await getPdfJsLib();
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
@@ -23,8 +38,10 @@ async function extractPDF(buffer) {
     fullText += strings.join(" ") + "\n";
   }
 
-  console.log("PDF TEXT PREVIEW:", fullText.slice(0, 300));
-  return fullText;
+  const text = fixMojibake(fullText);
+  console.log("PDF TEXT PREVIEW:", text.slice(0, 300));
+  console.log("TEXT AFTER FIX:", text.slice(0, 200));
+  return text;
 }
 
 module.exports = { extractPDF };
