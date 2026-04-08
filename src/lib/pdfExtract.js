@@ -11,7 +11,7 @@ async function getPdfJsLib() {
 
 async function extractPDF(buffer) {
   const pdfjsLib = await getPdfJsLib();
-  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
   const pdf = await loadingTask.promise;
 
   let fullText = "";
